@@ -25,7 +25,6 @@ public class MainClick {
     private static FragmentTransaction transaction;
 
     public MainClick(Bundle savedInstanceState, final AppCompatActivity act) {
-
         setTabIndoor((TextView) act.findViewById(R.id.tab_indoor));
         setTabFriends((TextView) act.findViewById(R.id.tab_friends));
         setTabSuggest((TextView) act.findViewById(R.id.tab_suggest));

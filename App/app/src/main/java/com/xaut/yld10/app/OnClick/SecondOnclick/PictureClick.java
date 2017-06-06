@@ -1,7 +1,10 @@
 package com.xaut.yld10.app.OnClick.SecondOnclick;
 
 import android.graphics.drawable.ColorDrawable;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,12 +15,24 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.RelativeLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.xaut.yld10.app.ContextUtil;
 import com.xaut.yld10.app.DensityUtil;
 import com.xaut.yld10.app.R;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * PictureClick.java
@@ -32,10 +47,15 @@ public class PictureClick {
     private static TextView dividerLineVertical, textViewTempMe, textViewHumiMe, textViewAirMe,
                     textViewTempFri, textViewHumiFri, textViewAirFri;
     private static RelativeLayout relativeInfoMe, relativeInfoFriend;
-    private static int i = 0;
-    private final int popupwindow_width = 260, popupwindow_height = 300;
+    private int i = 0, threadNumber = 3;
+    private final int popupwindow_width = 280, popupwindow_height = 300;
+    private String TempData, HumiData, CoData;
+    private Handler handler;
+    private CountDownLatch countDownLatch;
 
     public PictureClick(final AppCompatActivity act, View view) {
+        setCountDownLatch(new CountDownLatch(threadNumber));
+        handlerAndThread();
 
         View contentView = LayoutInflater.from(act)
                             .inflate(R.layout.infomation_popupwindow,null);
@@ -60,11 +80,98 @@ public class PictureClick {
         showPopupWindow(act,view);
     }
 
+    public void handlerAndThread() {
+
+        handler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                if (msg.what == 1) {
+                    getTextViewTempMe().setText("温度："+getTempData()+"℃");
+                }else if (msg.what == 2){
+                    getTextViewHumiMe().setText("湿度："+getHumiData()+"%");
+                }else {
+                    getTextViewAirMe().setText("CO浓度："+getCoData()+"ppm");
+                }
+            }
+        };
+
+        new Thread() {
+            @Override
+            public void run() {
+                getData("356403","408048",1);
+                getCountDownLatch().countDown();
+            }
+        }.start();
+
+        new Thread() {
+            @Override
+            public void run() {
+                getData("356403","408047",2);
+                getCountDownLatch().countDown();
+            }
+        }.start();
+
+        new Thread() {
+            @Override
+            public void run() {
+                getData("356403","408153",3);
+                getCountDownLatch().countDown();
+            }
+        }.start();
+    }
+
+    public void getData(String device, String sensor, int type) {
+        try {
+            URL url = new URL("http://api.yeelink.net/v1.1/device/"+device+"/sensor/"+sensor+"/datapoints");
+            HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
+            httpURLConnection.setRequestProperty("U-ApiKey","c1bc15b6d0adec562864af9829102870");
+            httpURLConnection.setRequestMethod("GET");
+            httpURLConnection.setReadTimeout(5000);
+            int code = httpURLConnection.getResponseCode();
+
+            if (code == 200) {
+                Log.e("返回码：", ""+code);
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(httpURLConnection.getInputStream()));
+                StringBuilder sb = new StringBuilder();
+                String str = "";
+                while ((str = br.readLine()) != null) {
+                    sb.append(str);
+                }
+                br.close();
+
+                Gson gson = new Gson();
+                Map<String,String> map = gson.fromJson(sb.toString(),
+                        new TypeToken<Map<String,String>>(){}.getType());
+
+                switch (type) {
+                    case 1:
+                        setTempData(map.get("value"));
+                        break;
+                    case 2:
+                        setHumiData(map.get("value"));
+                        break;
+                    case 3:
+                        setCoData(map.get("value"));
+                        break;
+                }
+                Message message = new Message();
+                message.what = type;
+                handler.sendMessage(message);
+            }else {
+                Log.e("返回码：",code+"！");
+            }
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            Log.e("信息：","链接地址有问题！");
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e("信息：","建立连接失败！");
+        }
+    }
+
     public void showPopupWindow(AppCompatActivity act, View view) {
         getEditText().setText("");
-        getTextViewTempMe().setText("温度：23℃");
-        getTextViewHumiMe().setText("湿度：52%");
-        getTextViewAirMe().setText("空气质量：80");
 
         if (view.getId() == R.id.imageView_Me) {
             getDividerLineVertical().setVisibility(View.GONE);
@@ -92,6 +199,11 @@ public class PictureClick {
         getPopupWindow().setTouchable(true);
         getPopupWindow().setOutsideTouchable(true);
         getPopupWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        try {
+            getCountDownLatch().await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         getPopupWindow().showAtLocation(LayoutInflater.from(act)
                 .inflate(R.layout.fragment_friends,null),Gravity.CENTER,0,0);
 
@@ -234,5 +346,37 @@ public class PictureClick {
 
     public int getPopupwindow_height() {
         return popupwindow_height;
+    }
+
+    public String getTempData() {
+        return TempData;
+    }
+
+    public void setTempData(String tempData) {
+        TempData = tempData;
+    }
+
+    public String getHumiData() {
+        return HumiData;
+    }
+
+    public void setHumiData(String humiData) {
+        HumiData = humiData;
+    }
+
+    public String getCoData() {
+        return CoData;
+    }
+
+    public void setCoData(String coData) {
+        CoData = coData;
+    }
+
+    public CountDownLatch getCountDownLatch() {
+        return countDownLatch;
+    }
+
+    public void setCountDownLatch(CountDownLatch countDownLatch) {
+        this.countDownLatch = countDownLatch;
     }
 }
