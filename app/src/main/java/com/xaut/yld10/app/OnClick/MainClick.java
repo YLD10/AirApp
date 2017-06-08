@@ -88,6 +88,7 @@ public class MainClick {
                     getManager().beginTransaction()
                                 .add(R.id.tab_frame, getFragmentSuggest()).commit();
                 }*/
+                new SuggestClick(act);
                 hideOtherFrame(2);
             }
         });
