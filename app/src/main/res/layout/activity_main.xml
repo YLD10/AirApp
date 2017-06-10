@@ -4,7 +4,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".Activity.MainActivity"
-    android:background="@drawable/background_image"
     android:padding="0dp"
     android:clickable="false">
 
@@ -24,7 +23,7 @@
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
         android:weightSum="1"
-        android:background="@android:color/white">
+        android:background="@android:color/darker_gray">
 
         <TextView
             style="@style/TabStyle"
